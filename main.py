@@ -17,20 +17,32 @@ from llm import set_global_llm
 import feedparser
 
 def get_zotero_corpus(id:str,key:str) -> list[dict]:
-    zot = zotero.Zotero(id, 'user', key)
-    collections = zot.everything(zot.collections())
-    collections = {c['key']:c for c in collections}
-    corpus = zot.everything(zot.items(itemType='conferencePaper || journalArticle || preprint'))
-    corpus = [c for c in corpus if c['data']['abstractNote'] != '']
-    def get_collection_path(col_key:str) -> str:
-        if p := collections[col_key]['data']['parentCollection']:
-            return get_collection_path(p) + '/' + collections[col_key]['data']['name']
-        else:
-            return collections[col_key]['data']['name']
-    for c in corpus:
-        paths = [get_collection_path(col) for col in c['data']['collections']]
-        c['paths'] = paths
-    return corpus
+    try:
+        zot = zotero.Zotero(id, 'user', key)
+        # 调试：打印API响应
+        print(f"Testing collections...")
+        cols = zot.collections()
+        print(f"Collections raw response: {cols}")
+        collections = zot.everything(cols)
+        print(f"Found {len(collections)} collections")
+        corpus = zot.everything(zot.items(itemType='conferencePaper || journalArticle || preprint'))
+        print(f"Raw items count: {len(corpus)}")
+        collections = zot.everything(zot.collections())
+        collections = {c['key']:c for c in collections}
+        corpus = zot.everything(zot.items(itemType='conferencePaper || journalArticle || preprint'))
+        corpus = [c for c in corpus if c['data']['abstractNote'] != '']
+        def get_collection_path(col_key:str) -> str:
+            if p := collections[col_key]['data']['parentCollection']:
+                return get_collection_path(p) + '/' + collections[col_key]['data']['name']
+            else:
+                return collections[col_key]['data']['name']
+        for c in corpus:
+            paths = [get_collection_path(col) for col in c['data']['collections']]
+            c['paths'] = paths
+        return corpus
+    except Exception as e:
+        logger.error(f"Zotero Error: {str(e)}")
+        raise
 
 def filter_corpus(corpus:list[dict], pattern:str) -> list[dict]:
     _,filename = mkstemp()
